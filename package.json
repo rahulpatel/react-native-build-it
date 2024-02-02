@@ -1,0 +1,22 @@
+{
+  "name": "react-native-build-it",
+  "version": "0.0.1",
+  "module": "dist/index.mjs",
+  "type": "module",
+  "bin": {
+    "rnbi": "dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --target node --outfile=dist/index.mjs",
+    "dev": "bun run build --watch"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+  }
+}
