@@ -11,12 +11,20 @@
   ],
   "scripts": {
     "build": "bun build src/index.ts --target node --outfile=dist/index.mjs",
-    "dev": "bun run build --watch"
+    "dev": "bun run build --watch",
+    "format": "prettier --write ."
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.5",
     "@types/bun": "latest",
+    "prettier": "^3.2.4",
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "adm-zip": "^0.5.10",
+    "citty": "^0.1.5",
+    "fast-glob": "^3.3.2",
+    "pathe": "^1.1.2",
+    "zx": "^7.2.3"
   }
 }

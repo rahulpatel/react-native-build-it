@@ -21,3 +21,7 @@ Under heavy development
 
 - [ ] Update readme with usage
 
+## Micro-app functionality
+
+- [ ] Env vars
+
