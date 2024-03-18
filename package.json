@@ -21,9 +21,9 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.8.0",
     "adm-zip": "^0.5.10",
     "citty": "^0.1.5",
-    "fast-glob": "^3.3.2",
     "pathe": "^1.1.2",
     "zx": "^7.2.3"
   }
