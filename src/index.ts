@@ -9,6 +9,7 @@ import { Fingerprint } from "./lib/fingerprint"
 import { Xcode } from "./lib/xcode"
 import { LocalCache } from "./lib/local-cache"
 import { RemoteCache } from "./lib/remote-cache"
+import { Metro } from "./lib/metro"
 
 function filterArgs(args: ParsedArgs) {
   return Object.keys(args).reduce((acc, key) => {
@@ -64,7 +65,6 @@ const buildIos = defineCommand({
     const iosDir = resolve(rootDir, "ios")
 
     try {
-      console.log(config)
       const xcode = new Xcode(iosDir)
 
       const fingerprint = new Fingerprint({
@@ -77,6 +77,7 @@ const buildIos = defineCommand({
 
       const cache = new LocalCache(fingerprint)
       const remoteCache = new RemoteCache(cache)
+      const metro = new Metro()
 
       const cached = await cache.get()
       if (!force && cached?.commandOutput) {
@@ -84,7 +85,12 @@ const buildIos = defineCommand({
 
         if (args.configuration === "Release") {
           console.log(">>>>>>>>>> BUNDLING JS")
-          // bundle js and inject into binary
+          metro.bundle({
+            entryFile: resolve(rootDir, "index.js"),
+            platform: "ios",
+            assetsDest: resolve(cached.appPath, "assets"),
+            bundleOutput: resolve(cached.appPath, "main.jsbundle"),
+          })
         }
 
         console.log(">>>>>>>>>> BUILT IT FROM CACHE")
@@ -98,17 +104,25 @@ const buildIos = defineCommand({
         await remoteCache.download()
 
         const cached = await cache.get()
-        if (cached?.commandOutput) {
-          console.log(cached.commandOutput)
-        }
 
-        if (args.configuration === "Release") {
-          console.log(">>>>>>>>>> BUNDLING JS")
-          // bundle js and inject into binary
-        }
+        if (cached) {
+          if (cached.commandOutput) {
+            console.log(cached.commandOutput)
+          }
 
-        console.log(">>>>>>>>>> BUILT IT FROM REMOTE CACHE")
-        return
+          if (args.configuration === "Release") {
+            console.log(">>>>>>>>>> BUNDLING JS")
+            metro.bundle({
+              entryFile: resolve(rootDir, "index.js"),
+              platform: "ios",
+              assetsDest: resolve(cached.appPath, "assets"),
+              bundleOutput: resolve(cached.appPath, "main.jsbundle"),
+            })
+          }
+
+          console.log(">>>>>>>>>> BUILT IT FROM REMOTE CACHE")
+          return
+        }
       }
 
       const { output, appPath } = await xcode.build()
@@ -117,7 +131,9 @@ const buildIos = defineCommand({
       }
 
       await cache.set(appPath, output)
-      await remoteCache.upload(cache.path())
+      if (remoteCache.enabled) {
+        await remoteCache.upload(cache.path())
+      }
 
       console.log(">>>>>>>>>> BUILT IT")
     } catch (e: unknown) {
