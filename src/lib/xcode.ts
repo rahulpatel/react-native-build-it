@@ -127,4 +127,50 @@ export class Xcode {
       appPath: exports.DEST,
     }
   }
+
+  async archive(options: {
+    scheme?: string
+    configuration?: string
+    archivePath: string
+  }) {
+    await this.information()
+    const scheme = this.scheme(options.scheme ?? this.schemes[0])
+    const configuration = this.configuration(
+      options.configuration ?? this.configurations[0],
+    )
+
+    const files = await fs.readdir(this.iosDir)
+    const project = files.find((file) => file.endsWith(".xcodeproj"))
+    const workspace = files.find((file) => file.endsWith(".xcworkspace"))
+
+    if (!project && !workspace) {
+      throw new Error("No Xcode project or workspace found")
+    }
+
+    const flags = [
+      "archive",
+      workspace ? "-workspace" : "-project",
+      workspace ? workspace : project,
+      "-scheme",
+      scheme,
+      "-configuration",
+      configuration,
+      "-archivePath",
+      options.archivePath,
+      "-sdk",
+      "iphoneos",
+    ]
+
+    const result =
+      await $`cd ${this.iosDir} && RCT_NO_LAUNCH_PACKAGER=true xcodebuild ${flags}`.nothrow()
+
+    const output = result.toString()
+
+    if (!output.includes("ARCHIVE SUCCEEDED")) {
+      const error = output.match(/error:.*/g)?.[0]
+      throw new Error(error ?? "Archive failed")
+    }
+
+    return { hello: "world" }
+  }
 }

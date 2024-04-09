@@ -2,23 +2,21 @@ import { basename, join } from "pathe"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
 
-import { Fingerprint } from "./fingerprint"
-
 export class LocalCache {
   dir = `${process.env.HOME}/.cache/rnstack`
 
-  fingerprint: Fingerprint
+  tag: string
 
-  constructor(fingerprint: Fingerprint) {
-    this.fingerprint = fingerprint
+  constructor(tag: string) {
+    this.tag = tag
   }
 
   path() {
-    return join(this.dir, this.fingerprint.hash())
+    return join(this.dir, this.tag)
   }
 
   async get() {
-    const cachePath = join(this.dir, this.fingerprint.hash())
+    const cachePath = this.path()
 
     if (existsSync(cachePath)) {
       const files = await fs.readdir(cachePath)
@@ -42,7 +40,7 @@ export class LocalCache {
   }
 
   async set(path: string, commandOutput: string) {
-    const cachePath = join(this.dir, this.fingerprint.hash())
+    const cachePath = this.path()
 
     if (existsSync(cachePath)) {
       return
@@ -57,10 +55,5 @@ export class LocalCache {
       join(cachePath, "commandOutput.log"),
       `${commandOutput}\n`,
     )
-    await fs.writeFile(
-      join(cachePath, "fingerprint.json"),
-      `${JSON.stringify(this.fingerprint.hashMap, null, 2)}\n`,
-    )
-    await fs.writeFile(join(cachePath, "hash"), `${this.fingerprint.hash}\n`)
   }
 }

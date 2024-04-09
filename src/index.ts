@@ -3,6 +3,7 @@ import type { ArgsDef, ParsedArgs } from "citty"
 import "zx/globals"
 import { defineCommand, runMain } from "citty"
 import { resolve } from "pathe"
+import assert from "node:assert"
 
 import { config } from "./lib/config"
 import { Fingerprint } from "./lib/fingerprint"
@@ -52,6 +53,15 @@ const buildIos = defineCommand({
       type: "string",
       description: "target to build",
     },
+    destination: {
+      type: "string",
+      description: `destination to build ("simulator" or "device")`,
+    },
+    tag: {
+      type: "string",
+      description: "tag to use for the remote build",
+      default: "latest",
+    },
     force: {
       type: "boolean",
       description: "force build",
@@ -64,18 +74,23 @@ const buildIos = defineCommand({
     const rootDir = resolve((args.dir || args._dir || ".") as string)
     const iosDir = resolve(rootDir, "ios")
 
+    assert(
+      ["simulator", "device"].includes(args.destination),
+      "Invalid destination, should be either 'simulator' or 'device'",
+    )
+
     try {
       const xcode = new Xcode(iosDir)
 
-      const fingerprint = new Fingerprint({
-        dir: rootDir,
-        platform: "ios",
-        ignore: ["**/build", "**/Pods"],
-        args: filterArgs(args),
-      })
-      await fingerprint.compute()
+      // const fingerprint = new Fingerprint({
+      //   dir: rootDir,
+      //   platform: "ios",
+      //   ignore: ["**/build", "**/Pods"],
+      //   args: filterArgs(args),
+      // })
+      // await fingerprint.compute()
 
-      const cache = new LocalCache(fingerprint)
+      const cache = new LocalCache(args.tag)
       const remoteCache = new RemoteCache(cache)
       const metro = new Metro()
 
@@ -125,14 +140,23 @@ const buildIos = defineCommand({
         }
       }
 
-      const { output, appPath } = await xcode.build()
-      if (!appPath) {
-        throw new Error("Build failed")
+      if (args.destination === "simulator") {
+        const { output, appPath } = await xcode.build()
+        if (!appPath) {
+          throw new Error("Build failed")
+        }
+
+        await cache.set(appPath, output)
+        if (remoteCache.enabled) {
+          await remoteCache.upload(cache.path())
+        }
       }
 
-      await cache.set(appPath, output)
-      if (remoteCache.enabled) {
-        await remoteCache.upload(cache.path())
+      if (args.destination === "device") {
+        const result = await xcode.archive({
+          archivePath: `${cache.path()}/archive`,
+        })
+        console.log(result)
       }
 
       console.log(">>>>>>>>>> BUILT IT")
