@@ -1,9 +1,11 @@
 import type { ArgsDef, ParsedArgs } from "citty"
 
 import "zx/globals"
+import { glob } from "zx"
 import { defineCommand, runMain } from "citty"
-import { resolve } from "pathe"
+import { resolve, basename, dirname, join } from "pathe"
 import assert from "node:assert"
+import os from "node:os"
 
 import { config } from "./lib/config"
 import { Fingerprint } from "./lib/fingerprint"
@@ -56,6 +58,7 @@ const buildIos = defineCommand({
     destination: {
       type: "string",
       description: `destination to build ("simulator" or "device")`,
+      default: "simulator",
     },
     tag: {
       type: "string",
@@ -99,13 +102,31 @@ const buildIos = defineCommand({
         console.log(cached.commandOutput)
 
         if (args.configuration === "Release") {
+          const extractedDir = `${os.tmpdir()}/${basename(cached.appPath).split(".")[0]}`
+          if (args.destination === "device") {
+            await $`unzip -q ${cached.appPath} -d ${extractedDir}`
+          }
+
+          let [appPath] = await glob("**/main.jsbundle", { cwd: extractedDir })
+          appPath = dirname(appPath)
+
+          const destPath =
+            args.destination === "device"
+              ? join(extractedDir, appPath)
+              : cached.appPath
+
           console.log(">>>>>>>>>> BUNDLING JS")
-          metro.bundle({
+          await metro.bundle({
             entryFile: resolve(rootDir, "index.js"),
             platform: "ios",
-            assetsDest: resolve(cached.appPath, "assets"),
-            bundleOutput: resolve(cached.appPath, "main.jsbundle"),
+            assetsDest: resolve(destPath, "assets"),
+            bundleOutput: resolve(destPath, "main.jsbundle"),
           })
+
+          if (args.destination === "device") {
+            await $`cd ${extractedDir} && zip -r ${cached.appPath} .`
+            await $`rm -rf ${extractedDir}`
+          }
         }
 
         console.log(">>>>>>>>>> BUILT IT FROM CACHE")
@@ -126,13 +147,33 @@ const buildIos = defineCommand({
           }
 
           if (args.configuration === "Release") {
+            const extractedDir = `${os.tmpdir()}/${basename(cached.appPath).split(".")[0]}`
+            if (args.destination === "device") {
+              await $`unzip -q ${cached.appPath} -d ${extractedDir}`
+            }
+
+            let [appPath] = await glob("**/main.jsbundle", {
+              cwd: extractedDir,
+            })
+            appPath = dirname(appPath)
+
+            const destPath =
+              args.destination === "device"
+                ? join(extractedDir, appPath)
+                : cached.appPath
+
             console.log(">>>>>>>>>> BUNDLING JS")
-            metro.bundle({
+            await metro.bundle({
               entryFile: resolve(rootDir, "index.js"),
               platform: "ios",
-              assetsDest: resolve(cached.appPath, "assets"),
-              bundleOutput: resolve(cached.appPath, "main.jsbundle"),
+              assetsDest: resolve(destPath, "assets"),
+              bundleOutput: resolve(destPath, "main.jsbundle"),
             })
+
+            if (args.destination === "device") {
+              await $`cd ${extractedDir} && zip -qr ${cached.appPath} .`
+              await $`rm -rf ${extractedDir}`
+            }
           }
 
           console.log(">>>>>>>>>> BUILT IT FROM REMOTE CACHE")
@@ -153,10 +194,17 @@ const buildIos = defineCommand({
       }
 
       if (args.destination === "device") {
-        const result = await xcode.archive({
-          archivePath: `${cache.path()}/archive`,
+        const { output, appPath } = await xcode.archive({
+          archiveDir: os.tmpdir(),
         })
-        console.log(result)
+        if (!appPath) {
+          throw new Error("Build failed")
+        }
+
+        await cache.set(appPath, output)
+        if (remoteCache.enabled) {
+          await remoteCache.upload(cache.path())
+        }
       }
 
       console.log(">>>>>>>>>> BUILT IT")

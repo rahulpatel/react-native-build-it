@@ -1,3 +1,5 @@
+import { join } from "pathe"
+
 export class Xcode {
   iosDir: string
 
@@ -131,7 +133,7 @@ export class Xcode {
   async archive(options: {
     scheme?: string
     configuration?: string
-    archivePath: string
+    archiveDir: string
   }) {
     await this.information()
     const scheme = this.scheme(options.scheme ?? this.schemes[0])
@@ -147,7 +149,9 @@ export class Xcode {
       throw new Error("No Xcode project or workspace found")
     }
 
-    const flags = [
+    const archivePath = `${options.archiveDir}/${scheme}`
+
+    const archiveFlags = [
       "archive",
       workspace ? "-workspace" : "-project",
       workspace ? workspace : project,
@@ -156,21 +160,55 @@ export class Xcode {
       "-configuration",
       configuration,
       "-archivePath",
-      options.archivePath,
+      archivePath,
       "-sdk",
       "iphoneos",
     ]
 
-    const result =
-      await $`cd ${this.iosDir} && RCT_NO_LAUNCH_PACKAGER=true xcodebuild ${flags}`.nothrow()
+    const archiveResult =
+      await $`cd ${this.iosDir} && RCT_NO_LAUNCH_PACKAGER=true xcodebuild ${archiveFlags}`.nothrow()
 
-    const output = result.toString()
+    const archiveOutput = archiveResult.toString()
 
-    if (!output.includes("ARCHIVE SUCCEEDED")) {
-      const error = output.match(/error:.*/g)?.[0]
+    if (!archiveOutput.includes("ARCHIVE SUCCEEDED")) {
+      const error = archiveOutput.match(/error:.*/g)?.[0]
       throw new Error(error ?? "Archive failed")
     }
 
-    return { hello: "world" }
+    const exportFlags = [
+      "-exportArchive",
+      "-archivePath",
+      `${archivePath}.xcarchive`,
+      "-exportOptionsPlist",
+      join(`${archivePath}.xcarchive`, "Info.plist"),
+      "-exportPath",
+      archivePath,
+    ]
+
+    const exportResult =
+      await $`cd ${this.iosDir} && RCT_NO_LAUNCH_PACKAGER=true xcodebuild ${exportFlags}`.nothrow()
+
+    const exportOutput = exportResult.toString()
+
+    if (!exportOutput.includes("EXPORT SUCCEEDED")) {
+      const error = exportOutput.match(/error:.*/g)?.[0]
+      throw new Error(error ?? "Export failed")
+    }
+
+    const appPath = exportOutput
+      .split("\n")
+      .filter((x) => x.startsWith(`Exported ${scheme} to:`))
+      .pop()
+      ?.split(": ")
+      .pop()
+
+    if (!appPath) {
+      throw new Error("Unable to get path for export")
+    }
+
+    return {
+      output: [archiveOutput, exportOutput].join("\n"),
+      appPath,
+    }
   }
 }

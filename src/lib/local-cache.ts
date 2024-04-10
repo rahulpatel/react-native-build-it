@@ -1,6 +1,7 @@
 import { basename, join } from "pathe"
 import { existsSync } from "node:fs"
 import fs from "node:fs/promises"
+import { glob } from "zx"
 
 export class LocalCache {
   dir = `${process.env.HOME}/.cache/rnstack`
@@ -19,8 +20,11 @@ export class LocalCache {
     const cachePath = this.path()
 
     if (existsSync(cachePath)) {
-      const files = await fs.readdir(cachePath)
-      const appName = files.find((file) => file.endsWith(".app"))
+      const [appPath] = await glob("**/*.app", { cwd: cachePath })
+      const [ipaPath] = await glob("**/*.ipa", { cwd: cachePath })
+
+      const appName = appPath ?? ipaPath
+
       if (!appName) {
         throw new Error("App not found in cache")
       }

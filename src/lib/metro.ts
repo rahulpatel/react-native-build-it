@@ -10,7 +10,7 @@ type BuildOptions = {
 export class Metro {
   constructor() {}
 
-  bundle(options: BuildOptions) {
+  async bundle(options: BuildOptions) {
     console.log("Building with options:", options)
 
     const flags = [
@@ -24,7 +24,7 @@ export class Metro {
       options.bundleOutput,
     ]
 
-    $`./node_modules/.bin/react-native bundle ${flags}`
+    await $`./node_modules/.bin/react-native bundle ${flags}`
 
     // TODO: compile the bundle using hermes
   }
